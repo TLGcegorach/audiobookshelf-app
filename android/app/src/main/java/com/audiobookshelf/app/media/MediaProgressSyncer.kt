@@ -179,7 +179,10 @@ class MediaProgressSyncer(
   }
 
   fun finished(cb: () -> Unit) {
-    if (!listeningTimerRunning) return
+    if (!listeningTimerRunning) {
+      Log.d(tag, "finished: Listening timer is not running for $currentDisplayTitle")
+      return cb()
+    }
 
     listeningTimerTask?.cancel()
     listeningTimerTask = null

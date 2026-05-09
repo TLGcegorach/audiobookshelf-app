@@ -39,7 +39,7 @@
     </div>
 
     <template v-for="episode in episodesSorted">
-      <tables-podcast-episode-row :episode="episode" :local-episode="localEpisodeMap[episode.id]" :library-item-id="libraryItemId" :local-library-item-id="localLibraryItemId" :is-local="isLocal" :sort-key="sortKey" :key="episode.id" @addToPlaylist="addEpisodeToPlaylist" />
+      <tables-podcast-episode-row :episode="episode" :local-episode="localEpisodeMap[episode.id]" :episode-queue="episodeQueue" :library-item-id="libraryItemId" :local-library-item-id="localLibraryItemId" :is-local="isLocal" :sort-key="sortKey" :key="episode.id" @addToPlaylist="addEpisodeToPlaylist" />
     </template>
 
     <!-- Huhhh?
@@ -208,6 +208,9 @@ export default {
         }
         return String(aValue).localeCompare(String(bValue), undefined, { numeric: true, sensitivity: 'base' })
       })
+    },
+    episodeQueue() {
+      return this.episodesSorted.map((ep) => ep.id)
     },
     // Map of local episodes where server episode id is key
     localEpisodeMap() {

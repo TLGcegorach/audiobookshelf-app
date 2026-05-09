@@ -115,6 +115,7 @@ class PlayerNotificationService : MediaBrowserServiceCompat() {
 
   var currentPlaybackSession: PlaybackSession? = null
   private var initialPlaybackRate: Float? = null
+  private var podcastEpisodeQueue: List<String> = emptyList()
 
   private var isAndroidAuto = false
 
@@ -594,6 +595,25 @@ class PlayerNotificationService : MediaBrowserServiceCompat() {
     mediaSessionConnector.setEnabledPlaybackActions(playbackActions)
   }
 
+  fun setPodcastEpisodeQueue(queue: List<String>) {
+    podcastEpisodeQueue = queue
+  }
+
+  fun getNextQueuedPodcastEpisode(
+          currentEpisodeId: String?,
+          podcast: Podcast,
+          libraryItemId: String,
+          localPlayback: Boolean
+  ): PodcastEpisode? =
+          PodcastEpisodeQueue.getNextQueuedEpisode(
+                  currentEpisodeId,
+                  podcastEpisodeQueue,
+                  podcast,
+                  libraryItemId,
+                  mediaManager.serverUserMediaProgress,
+                  localPlayback
+          )
+
   fun handlePlayerPlaybackError(errorMessage: String) {
     // On error and was attempting to direct play - fallback to transcode
     currentPlaybackSession?.let { playbackSession ->
@@ -622,19 +642,33 @@ class PlayerNotificationService : MediaBrowserServiceCompat() {
 
   fun handlePlaybackEnded() {
     Log.d(tag, "handlePlaybackEnded")
-    if (isAndroidAuto && currentPlaybackSession?.isPodcastEpisode == true) {
-      Log.d(tag, "Podcast playback ended on android auto")
-      val libraryItem = currentPlaybackSession?.libraryItem ?: return
+    if (currentPlaybackSession?.isPodcastEpisode == true) {
+      Log.d(tag, "Podcast playback ended")
+      val playbackSession = currentPlaybackSession ?: return
+      val libraryItemWrapper = playbackSession.libraryItem ?: playbackSession.localLibraryItem ?: return
+      val libraryItemId = playbackSession.libraryItemId ?: return
+      val currentEpisodeId =
+              if (playbackSession.isLocal) playbackSession.episodeId ?: playbackSession.localEpisodeId
+              else playbackSession.episodeId
 
       // Need to sync with server to set as finished
       mediaProgressSyncer.finished {
         // Need to reload media progress
         mediaManager.loadServerUserMediaProgress {
-          val podcast = libraryItem.media as Podcast
-          val nextEpisode = podcast.getNextUnfinishedEpisode(libraryItem.id, mediaManager)
+          val podcast =
+                  if (libraryItemWrapper is LocalLibraryItem) libraryItemWrapper.media as Podcast
+                  else (libraryItemWrapper as LibraryItem).media as Podcast
+          val nextEpisode =
+                  getNextQueuedPodcastEpisode(
+                          currentEpisodeId,
+                          podcast,
+                          libraryItemId,
+                          playbackSession.isLocal
+                  )
+                          ?: podcast.getNextUnfinishedEpisode(libraryItemId, mediaManager)
           Log.d(tag, "handlePlaybackEnded nextEpisode=$nextEpisode")
           nextEpisode?.let { podcastEpisode ->
-            mediaManager.play(libraryItem, podcastEpisode, getPlayItemRequestPayload(false)) {
+            mediaManager.play(libraryItemWrapper, podcastEpisode, getPlayItemRequestPayload(false)) {
               if (it == null) {
                 Log.e(tag, "Failed to play library item")
               } else {

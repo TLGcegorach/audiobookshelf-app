@@ -87,7 +87,11 @@ export default {
       default: () => {}
     },
     isLocal: Boolean,
-    sortKey: String
+    sortKey: String,
+    episodeQueue: {
+      type: Array,
+      default: () => []
+    }
   },
   mixins: [cellularPermissionHelpers],
   data() {
@@ -278,12 +282,14 @@ export default {
             libraryItemId: this.localLibraryItemId,
             episodeId: this.localEpisode.id,
             serverLibraryItemId: this.libraryItemId,
-            serverEpisodeId: this.episode.id
+            serverEpisodeId: this.episode.id,
+            episodeQueue: this.episodeQueue
           })
         } else {
           this.$eventBus.$emit('play-item', {
             libraryItemId: this.libraryItemId,
-            episodeId: this.episode.id
+            episodeId: this.episode.id,
+            episodeQueue: this.episodeQueue
           })
         }
       }

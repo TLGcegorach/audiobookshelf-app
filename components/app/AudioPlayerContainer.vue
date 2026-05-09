@@ -243,7 +243,7 @@ export default {
       }
 
       console.log('Called playLibraryItem', libraryItemId)
-      const preparePayload = { libraryItemId, episodeId, playWhenReady: startWhenReady, playbackRate }
+      const preparePayload = { libraryItemId, episodeId, playWhenReady: startWhenReady, playbackRate, episodeQueue: payload.episodeQueue || [] }
       if (startTime !== undefined && startTime !== null) preparePayload.startTime = startTime
       AbsAudioPlayer.prepareLibraryItem(preparePayload)
         .then((data) => {

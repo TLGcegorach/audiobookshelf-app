@@ -210,6 +210,9 @@ class AbsAudioPlayer : Plugin() {
     val playWhenReady = call.getBoolean("playWhenReady") == true
     val playbackRate = call.getFloat("playbackRate",1f) ?: 1f
     val startTimeOverride = call.getDouble("startTime")
+    val episodeQueue = call.getArray("episodeQueue")?.let { queue ->
+      (0 until queue.length()).mapNotNull { queue.optString(it).takeIf { id -> id.isNotEmpty() } }
+    } ?: emptyList()
 
     AbsLogger.info("AbsAudioPlayer", "prepareLibraryItem: lid=$libraryItemId, startTimeOverride=$startTimeOverride, playbackRate=$playbackRate")
 
@@ -236,6 +239,7 @@ class AbsAudioPlayer : Plugin() {
         Handler(Looper.getMainLooper()).post {
           Log.d(tag, "prepareLibraryItem: Preparing Local Media item ${jacksonMapper.writeValueAsString(it)}")
           val playbackSession = it.getPlaybackSession(episode, playerNotificationService.getDeviceInfo())
+          playerNotificationService.setPodcastEpisodeQueue(episodeQueue)
           if (startTimeOverride != null) {
             Log.d(tag, "prepareLibraryItem: Using start time override $startTimeOverride")
             playbackSession.currentTime = startTimeOverride
@@ -269,6 +273,7 @@ class AbsAudioPlayer : Plugin() {
             if (it == null) {
               call.resolve(JSObject("{\"error\":\"Server play request failed\"}"))
             } else {
+              playerNotificationService.setPodcastEpisodeQueue(episodeQueue)
               if (startTimeOverride != null) {
                 Log.d(tag, "prepareLibraryItem: Using start time override $startTimeOverride")
                 it.currentTime = startTimeOverride
