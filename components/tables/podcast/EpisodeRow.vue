@@ -87,7 +87,9 @@ export default {
       default: () => {}
     },
     isLocal: Boolean,
-    sortKey: String
+    sortKey: String,
+    // (episodeId) => play-item payloads to auto-play after this episode
+    buildQueue: Function
   },
   mixins: [cellularPermissionHelpers],
   data() {
@@ -270,6 +272,7 @@ export default {
         this.$eventBus.$emit('pause-item')
       } else {
         this.$store.commit('setPlayerIsStartingPlayback', this.episode.id)
+        const queue = this.buildQueue ? this.buildQueue(this.episode.id) : undefined
 
         if (this.localEpisode && this.localLibraryItemId) {
           console.log('Play local episode', this.localEpisode.id, this.localLibraryItemId)
@@ -278,12 +281,14 @@ export default {
             libraryItemId: this.localLibraryItemId,
             episodeId: this.localEpisode.id,
             serverLibraryItemId: this.libraryItemId,
-            serverEpisodeId: this.episode.id
+            serverEpisodeId: this.episode.id,
+            queue
           })
         } else {
           this.$eventBus.$emit('play-item', {
             libraryItemId: this.libraryItemId,
-            episodeId: this.episode.id
+            episodeId: this.episode.id,
+            queue
           })
         }
       }

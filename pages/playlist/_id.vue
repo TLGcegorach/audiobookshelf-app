@@ -139,19 +139,23 @@ export default {
         this.playNextItem()
       }
     },
+    getPlayPayload(item) {
+      if (item.localLibraryItem) {
+        return { libraryItemId: item.localLibraryItem.id, episodeId: item.localEpisode?.id, serverLibraryItemId: item.libraryItemId, serverEpisodeId: item.episodeId }
+      }
+      return { libraryItemId: item.libraryItemId, episodeId: item.episodeId }
+    },
     playNextItem() {
-      const nextItem = this.playableItems.find((i) => {
+      // Play unfinished items in playlist order, the remaining items are queued to play after
+      const unfinishedItems = this.playableItems.filter((i) => {
         const prog = this.$store.getters['user/getUserMediaProgress'](i.libraryItemId, i.episodeId)
         return !prog?.isFinished
       })
+      const [nextItem, ...queuedItems] = unfinishedItems
       if (nextItem) {
         this.mediaIdStartingPlayback = nextItem.episodeId || nextItem.libraryItemId
         this.$store.commit('setPlayerIsStartingPlayback', this.mediaIdStartingPlayback)
-        if (nextItem.localLibraryItem) {
-          this.$eventBus.$emit('play-item', { libraryItemId: nextItem.localLibraryItem.id, episodeId: nextItem.localEpisode?.id, serverLibraryItemId: nextItem.libraryItemId, serverEpisodeId: nextItem.episodeId })
-        } else {
-          this.$eventBus.$emit('play-item', { libraryItemId: nextItem.libraryItemId, episodeId: nextItem.episodeId })
-        }
+        this.$eventBus.$emit('play-item', { ...this.getPlayPayload(nextItem), queue: queuedItems.map(this.getPlayPayload) })
       }
     },
     playlistUpdated(playlist) {

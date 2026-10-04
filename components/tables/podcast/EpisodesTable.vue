@@ -39,7 +39,7 @@
     </div>
 
     <template v-for="episode in episodesSorted">
-      <tables-podcast-episode-row :episode="episode" :local-episode="localEpisodeMap[episode.id]" :library-item-id="libraryItemId" :local-library-item-id="localLibraryItemId" :is-local="isLocal" :sort-key="sortKey" :key="episode.id" @addToPlaylist="addEpisodeToPlaylist" />
+      <tables-podcast-episode-row :episode="episode" :local-episode="localEpisodeMap[episode.id]" :library-item-id="libraryItemId" :local-library-item-id="localLibraryItemId" :is-local="isLocal" :sort-key="sortKey" :build-queue="buildEpisodeQueue" :key="episode.id" @addToPlaylist="addEpisodeToPlaylist" />
     </template>
 
     <!-- Huhhh?
@@ -56,6 +56,7 @@
 
 <script>
 import { Dialog } from '@capacitor/dialog'
+import { buildPodcastEpisodeQueue } from '@/utils/playQueue'
 
 export default {
   props: {
@@ -244,6 +245,24 @@ export default {
     }
   },
   methods: {
+    /**
+     * Episodes to auto-play after episodeId, in chronological order (oldest -> newest)
+     */
+    buildEpisodeQueue(episodeId) {
+      return buildPodcastEpisodeQueue({
+        episodes: this.episodes,
+        startEpisodeId: episodeId,
+        libraryItemId: this.libraryItemId,
+        localLibraryItemId: this.localLibraryItemId,
+        // Downloaded episodes cannot be cast
+        localEpisodeMap: this.$store.state.isCasting ? {} : this.localEpisodeMap,
+        isLocal: this.isLocal,
+        isFinished: (episode) => {
+          const progress = this.isLocal ? this.$store.getters['globals/getLocalMediaProgressById'](this.libraryItemId, episode.id) : this.$store.getters['user/getUserMediaProgress'](this.libraryItemId, episode.id)
+          return !!progress?.isFinished
+        }
+      })
+    },
     async clearDownloadQueue() {
       const { value } = await Dialog.confirm({
         title: this.$strings.HeaderConfirm,

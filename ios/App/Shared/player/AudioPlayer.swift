@@ -45,6 +45,9 @@ class AudioPlayer: NSObject {
     private var queueItemStatusObserver:NSKeyValueObservation?
     
     private var isRebuildingQueue = false
+    // Set when the last track finished playing, reported to the client as PlayerState.ended
+    private var hasEnded = false
+    private var isDestroying = false
     
     // Sleep timer values
     internal var sleepTimeChapterStopAt: Double?
@@ -140,6 +143,7 @@ class AudioPlayer: NSObject {
         // AVAudioSession_iOS.mm:1206  Deactivating an audio session that has running I/O. All I/O should be stopped or paused prior to deactivating the audio session
         // It is related to L79 `AVAudioSession.sharedInstance().setActive(false)`
         self.pause()
+        self.isDestroying = true
         self.audioPlayer.replaceCurrentItem(with: nil)
         
         do {
@@ -331,6 +335,7 @@ class AudioPlayer: NSObject {
     
     private func resumePlayback() {
         AbsLogger.info(message:"PLAY: Resuming playback")
+        self.hasEnded = false
         
         self.markAudioSessionAs(active: true)
         DispatchQueue.runOnMainQueue {
@@ -418,6 +423,7 @@ class AudioPlayer: NSObject {
 
     public func seek(_ to: Double, from: String) {
         AbsLogger.info(message:"SEEK: Seek to \(to) from \(from)")
+        self.hasEnded = false
 
         guard let playbackSession = self.getPlaybackSession() else { return }
 
@@ -546,6 +552,9 @@ class AudioPlayer: NSObject {
     }
     
     public func getPlayerState() -> PlayerState {
+        if hasEnded {
+            return PlayerState.ended
+        }
         switch status {
         case .uninitialized:
             return PlayerState.buffering
@@ -816,8 +825,14 @@ class AudioPlayer: NSObject {
                    if self.isRebuildingQueue {
                      return
                    }
+                   // player is being closed, this is not the end of playback
+                   if self.isDestroying {
+                     return
+                   }
                    AbsLogger.info(message:"Player ended or next item is nil, marking ended")
                    self.markAudioSessionAs(active: false)
+                   self.hasEnded = true
+                   NotificationCenter.default.post(name: NSNotification.Name(PlayerEvents.update.rawValue), object: nil)
                 }
             }
         } else {

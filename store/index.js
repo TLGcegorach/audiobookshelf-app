@@ -9,6 +9,8 @@ export const state = () => ({
   playerIsFullscreen: false,
   playerIsStartingPlayback: false, // When pressing play before native play response
   playerStartingPlaybackMediaId: null,
+  playQueue: [], // play-item payloads to play in order after the current item ends
+  playQueueCurrent: null, // play-item payload of the item started from the queue
   isCasting: false,
   isCastAvailable: false,
   attemptingConnection: false,
@@ -139,6 +141,14 @@ export const mutations = {
     state.currentPlaybackSession = playbackSession
 
     state.isCasting = playbackSession?.mediaPlayer === 'cast-player'
+  },
+  setPlayQueue(state, { current, queue }) {
+    state.playQueueCurrent = current || null
+    state.playQueue = queue || []
+  },
+  clearPlayQueue(state) {
+    state.playQueueCurrent = null
+    state.playQueue = []
   },
   setMediaPlayer(state, mediaPlayer) {
     state.isCasting = mediaPlayer === 'cast-player'

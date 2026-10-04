@@ -173,6 +173,7 @@
 import { Dialog } from '@capacitor/dialog'
 import { AbsFileSystem, AbsDownloader } from '@/plugins/capacitor'
 import { getAverageColorFromCoverUrl } from '@/utils/coverAverageColor'
+import { buildPodcastEpisodeQueue } from '@/utils/playQueue'
 import cellularPermissionHelpers from '@/mixins/cellularPermissionHelpers'
 
 export default {
@@ -535,19 +536,38 @@ export default {
           }
         })
 
-        let episode = this.episodes.find((ep) => {
+        const isEpisodeFinished = (ep) => {
           var podcastProgress = null
           if (!this.isLocal) {
             podcastProgress = this.$store.getters['user/getUserMediaProgress'](this.libraryItemId, ep.id)
           } else {
             podcastProgress = this.$store.getters['globals/getLocalMediaProgressById'](this.libraryItemId, ep.id)
           }
-          return !podcastProgress?.isFinished
-        })
+          return !!podcastProgress?.isFinished
+        }
+        let episode = this.episodes.find((ep) => !isEpisodeFinished(ep))
 
         if (!episode) episode = this.episodes[0]
 
         const episodeId = episode.id
+
+        // Unfinished episodes published after this one are auto-played in chronological order
+        const localEpisodeMap = {}
+        if (this.hasLocal && !this.isLocal && !this.isCasting) {
+          this.localLibraryItem.media.episodes?.forEach((lep) => {
+            if (lep.serverEpisodeId) localEpisodeMap[lep.serverEpisodeId] = lep
+          })
+        }
+        // Casting a downloaded podcast plays from the server, local episode ids cannot be queued
+        const queue = this.isLocal && this.isCasting ? [] : buildPodcastEpisodeQueue({
+          episodes: this.episodes,
+          startEpisodeId: episodeId,
+          libraryItemId: this.libraryItemId,
+          localLibraryItemId: this.localLibraryItem?.id,
+          localEpisodeMap,
+          isLocal: this.isLocal,
+          isFinished: isEpisodeFinished
+        })
 
         let localEpisode = null
         if (this.hasLocal && !this.isLocal) {
@@ -561,11 +581,11 @@ export default {
         this.$store.commit('setPlayerIsStartingPlayback', serverEpisodeId)
         if (serverEpisodeId && this.serverLibraryItemId && this.isCasting) {
           // If casting and connected to server for local library item then send server library item id
-          this.$eventBus.$emit('play-item', { libraryItemId: this.serverLibraryItemId, episodeId: serverEpisodeId })
+          this.$eventBus.$emit('play-item', { libraryItemId: this.serverLibraryItemId, episodeId: serverEpisodeId, queue })
         } else if (localEpisode) {
-          this.$eventBus.$emit('play-item', { libraryItemId: this.localLibraryItem.id, episodeId: localEpisode.id, serverLibraryItemId: this.serverLibraryItemId, serverEpisodeId })
+          this.$eventBus.$emit('play-item', { libraryItemId: this.localLibraryItem.id, episodeId: localEpisode.id, serverLibraryItemId: this.serverLibraryItemId, serverEpisodeId, queue })
         } else {
-          this.$eventBus.$emit('play-item', { libraryItemId: this.libraryItemId, episodeId })
+          this.$eventBus.$emit('play-item', { libraryItemId: this.libraryItemId, episodeId, queue })
         }
       } else {
         // Audiobook

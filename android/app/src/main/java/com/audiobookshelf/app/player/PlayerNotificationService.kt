@@ -125,6 +125,8 @@ class PlayerNotificationService : MediaBrowserServiceCompat() {
   private var metadataArtJob: Job? = null
 
   private var isAndroidAuto = false
+  // Client (webview) play queue will start the next item when playback ends
+  var clientQueueActive = false
 
   // The following are used for the shake detection
   private var isShakeSensorRegistered: Boolean = false
@@ -642,16 +644,21 @@ class PlayerNotificationService : MediaBrowserServiceCompat() {
 
   fun handlePlaybackEnded() {
     Log.d(tag, "handlePlaybackEnded")
+    if (clientQueueActive) {
+      Log.d(tag, "handlePlaybackEnded: Client play queue is active, next item will be started by the client")
+      return
+    }
     if (isAndroidAuto && currentPlaybackSession?.isPodcastEpisode == true) {
       Log.d(tag, "Podcast playback ended on android auto")
       val libraryItem = currentPlaybackSession?.libraryItem ?: return
+      val endedEpisodeId = currentPlaybackSession?.episodeId
 
       // Need to sync with server to set as finished
       mediaProgressSyncer.finished {
         // Need to reload media progress
         mediaManager.loadServerUserMediaProgress {
           val podcast = libraryItem.media as Podcast
-          val nextEpisode = podcast.getNextUnfinishedEpisode(libraryItem.id, mediaManager)
+          val nextEpisode = podcast.getNextUnfinishedEpisode(libraryItem.id, endedEpisodeId, mediaManager)
           Log.d(tag, "handlePlaybackEnded nextEpisode=$nextEpisode")
           nextEpisode?.let { podcastEpisode ->
             mediaManager.play(libraryItem, podcastEpisode, getPlayItemRequestPayload(false)) {

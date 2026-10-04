@@ -1,6 +1,6 @@
 <template>
   <div>
-    <app-audio-player ref="audioPlayer" :bookmarks="bookmarks" :sleep-timer-running="isSleepTimerRunning" :sleep-time-remaining="sleepTimeRemaining" :serverLibraryItemId="serverLibraryItemId" @selectPlaybackSpeed="showPlaybackSpeedModal = true" @updateTime="(t) => (currentTime = t)" @showSleepTimer="showSleepTimer" @showBookmarks="showBookmarks" />
+    <app-audio-player ref="audioPlayer" :bookmarks="bookmarks" :sleep-timer-running="isSleepTimerRunning" :sleep-time-remaining="sleepTimeRemaining" :serverLibraryItemId="serverLibraryItemId" @selectPlaybackSpeed="showPlaybackSpeedModal = true" @updateTime="(t) => (currentTime = t)" @showSleepTimer="showSleepTimer" @showBookmarks="showBookmarks" @playbackEnded="onPlaybackEnded" />
 
     <modals-playback-speed-modal v-model="showPlaybackSpeedModal" :playback-rate.sync="playbackSpeed" @update:playbackRate="updatePlaybackSpeed" @change="changePlaybackSpeed" />
     <modals-sleep-timer-modal v-model="showSleepTimerModal" :current-time="sleepTimeRemaining" :sleep-timer-running="isSleepTimerRunning" :current-end-of-chapter-time="currentEndOfChapterTime" :is-auto="isAutoSleepTimer" @change="selectSleepTimeout" @cancel="cancelSleepTimer" @increase="increaseSleepTimer" @decrease="decreaseSleepTimer" />
@@ -51,6 +51,26 @@ export default {
     },
     currentPlaybackSession() {
       return this.$store.state.currentPlaybackSession
+    },
+    isPlayQueueActive() {
+      return !!this.$store.state.playQueueCurrent
+    }
+  },
+  watch: {
+    currentPlaybackSession(session) {
+      // Playback was started outside of the play queue (e.g. Android Auto or restoring last session)
+      if (session && this.$store.state.playQueueCurrent && !this.isPlayQueueCurrentInPlayer()) {
+        console.log('[AudioPlayerContainer] Playback session is not from the play queue, clearing queue')
+        this.$store.commit('clearPlayQueue')
+      }
+    },
+    isPlayQueueActive(isActive) {
+      // Native Android auto-advances podcast episodes in Android Auto, disable that while the client queue is active
+      if (this.$platform === 'android') {
+        AbsAudioPlayer.setClientQueueActive({ value: isActive }).catch((error) => {
+          console.error('[AudioPlayerContainer] Failed to set client queue active', error)
+        })
+      }
     }
   },
   methods: {
@@ -224,8 +244,18 @@ export default {
         }
       }
 
+      // A queue passed with the play request replaces the current queue.
+      //   Starting a different item without a queue ends the current queue.
+      const isAlreadyStreaming = this.$store.getters['getIsMediaStreaming'](libraryItemId, episodeId)
+      if (Array.isArray(payload.queue)) {
+        const { queue, paused: _paused, startTime: _startTime, ...current } = payload
+        this.$store.commit('setPlayQueue', { current, queue })
+      } else if (!isAlreadyStreaming) {
+        this.$store.commit('clearPlayQueue')
+      }
+
       // if already playing this item then jump to start time
-      if (this.$store.getters['getIsMediaStreaming'](libraryItemId, episodeId)) {
+      if (isAlreadyStreaming) {
         console.log('Already streaming item', startTime)
         if (startTime !== undefined && startTime !== null) {
           // seek to start time
@@ -274,6 +304,34 @@ export default {
         .finally(() => {
           this.$store.commit('setPlayerDoneStartingPlayback')
         })
+    },
+    /**
+     * Check if the item started from the play queue is the one open in the player
+     */
+    isPlayQueueCurrentInPlayer() {
+      const current = this.$store.state.playQueueCurrent
+      if (!current) return false
+      const isMediaStreaming = this.$store.getters['getIsMediaStreaming']
+      if (isMediaStreaming(current.libraryItemId, current.episodeId)) return true
+      return !!current.serverLibraryItemId && isMediaStreaming(current.serverLibraryItemId, current.serverEpisodeId)
+    },
+    /**
+     * Current item finished playing, start the next item in the play queue (if any)
+     */
+    onPlaybackEnded() {
+      const queue = this.$store.state.playQueue
+      if (!queue.length) return
+
+      // Ignore ended events for items not started from the queue (e.g. previous item being replaced)
+      if (!this.isPlayQueueCurrentInPlayer()) {
+        console.log('[AudioPlayerContainer] onPlaybackEnded: Item in player is not the current queue item')
+        return
+      }
+
+      const [next, ...rest] = queue
+      AbsLogger.info({ tag: 'AudioPlayerContainer', message: `onPlaybackEnded: Playing next queue item ${next.libraryItemId} ${next.episodeId || ''} (${rest.length} remaining)` })
+      this.$store.commit('setPlayerIsStartingPlayback', next.serverEpisodeId || next.episodeId || next.serverLibraryItemId || next.libraryItemId)
+      this.playLibraryItem({ ...next, queue: rest })
     },
     pauseItem() {
       if (this.$refs.audioPlayer && this.$refs.audioPlayer.isPlaying) {

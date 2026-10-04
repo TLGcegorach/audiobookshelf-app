@@ -120,20 +120,23 @@ export default {
         this.playNextItem()
       }
     },
+    getPlayPayload(book) {
+      if (book.localLibraryItem) {
+        return { libraryItemId: book.localLibraryItem.id, serverLibraryItemId: book.id }
+      }
+      return { libraryItemId: book.id }
+    },
     playNextItem() {
-      const nextBookNotRead = this.playableItems.find((pb) => {
+      // Play unfinished books in collection order, the remaining books are queued to play after
+      const booksNotRead = this.playableItems.filter((pb) => {
         const prog = this.$store.getters['user/getUserMediaProgress'](pb.id)
         return !prog?.isFinished
       })
+      const [nextBookNotRead, ...queuedBooks] = booksNotRead
       if (nextBookNotRead) {
         this.mediaIdStartingPlayback = nextBookNotRead.id
         this.$store.commit('setPlayerIsStartingPlayback', nextBookNotRead.id)
-
-        if (nextBookNotRead.localLibraryItem) {
-          this.$eventBus.$emit('play-item', { libraryItemId: nextBookNotRead.localLibraryItem.id, serverLibraryItemId: nextBookNotRead.id })
-        } else {
-          this.$eventBus.$emit('play-item', { libraryItemId: nextBookNotRead.id })
-        }
+        this.$eventBus.$emit('play-item', { ...this.getPlayPayload(nextBookNotRead), queue: queuedBooks.map(this.getPlayPayload) })
       }
     },
     libraryChanged(libraryId) {

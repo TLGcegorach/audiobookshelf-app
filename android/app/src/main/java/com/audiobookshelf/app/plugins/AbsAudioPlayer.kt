@@ -429,6 +429,15 @@ class AbsAudioPlayer : Plugin() {
   }
 
   @PluginMethod
+  fun setClientQueueActive(call: PluginCall) {
+    val active = call.getBoolean("value", false) ?: false
+    Handler(Looper.getMainLooper()).post {
+      playerNotificationService.clientQueueActive = active
+    }
+    call.resolve()
+  }
+
+  @PluginMethod
   fun requestSession(call: PluginCall) {
     // Need to make sure the player service has been started
     Log.d(tag, "CAST REQUEST SESSION PLUGIN")

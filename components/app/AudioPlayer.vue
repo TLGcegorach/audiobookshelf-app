@@ -811,6 +811,7 @@ export default {
       }
     },
     closePlayback() {
+      this.$store.commit('clearPlayQueue')
       this.endPlayback()
       AbsAudioPlayer.closePlayback()
     },
@@ -868,10 +869,12 @@ export default {
         this.isLoading = false
       }
 
-      if (data.playerState === 'ENDED') {
-        console.log('[AudioPlayer] Playback ended')
-      }
+      const wasEnded = this.isEnded
       this.isEnded = data.playerState === 'ENDED'
+      if (this.isEnded && !wasEnded) {
+        console.log('[AudioPlayer] Playback ended')
+        this.$emit('playbackEnded')
+      }
 
       console.log('received metadata update', data)
 
