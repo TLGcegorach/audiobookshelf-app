@@ -246,7 +246,7 @@ export default {
   },
   methods: {
     /**
-     * Episodes to auto-play after episodeId, in chronological order (oldest -> newest)
+     * Episodes to auto-play after episodeId, in reverse chronological order (newest -> oldest)
      */
     buildEpisodeQueue(episodeId) {
       return buildPodcastEpisodeQueue({

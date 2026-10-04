@@ -6,18 +6,18 @@
  */
 
 /**
- * Sort podcast episodes oldest -> newest.
+ * Sort podcast episodes newest -> oldest (reverse chronological).
  * Episodes without a published date are treated as the oldest, ties fall back to episode index.
  *
  * @param {Object[]} episodes
  * @returns {Object[]} new sorted array
  */
-export function sortEpisodesChronologically(episodes) {
+export function sortEpisodesNewestFirst(episodes) {
   return [...(episodes || [])].sort((a, b) => {
     const aPub = Number(a.publishedAt) || 0
     const bPub = Number(b.publishedAt) || 0
-    if (aPub !== bPub) return aPub - bPub
-    return (Number(a.index) || 0) - (Number(b.index) || 0)
+    if (aPub !== bPub) return bPub - aPub
+    return (Number(b.index) || 0) - (Number(a.index) || 0)
   })
 }
 
@@ -45,7 +45,7 @@ export function getEpisodePlayPayload({ episode, libraryItemId, localLibraryItem
 
 /**
  * Build the queue of episodes to play after `startEpisodeId`.
- * Episodes are played in chronological order (oldest -> newest) and finished episodes are skipped.
+ * Episodes are played in reverse chronological order (newest -> oldest) and finished episodes are skipped.
  *
  * @param {Object} params same as getEpisodePlayPayload plus:
  * @param {Object[]} params.episodes all episodes of the podcast
@@ -54,7 +54,7 @@ export function getEpisodePlayPayload({ episode, libraryItemId, localLibraryItem
  * @returns {Object[]} play-item payloads
  */
 export function buildPodcastEpisodeQueue({ episodes, startEpisodeId, isFinished, ...payloadParams }) {
-  const sorted = sortEpisodesChronologically(episodes)
+  const sorted = sortEpisodesNewestFirst(episodes)
   const startIndex = sorted.findIndex((ep) => ep.id === startEpisodeId)
   if (startIndex < 0) return []
   return sorted

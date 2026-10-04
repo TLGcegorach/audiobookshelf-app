@@ -117,13 +117,13 @@ class Podcast(
   }
 
   /**
-   * Get the next unfinished episode in chronological order (oldest -> newest) after currentEpisodeId.
+   * Get the next unfinished episode in reverse chronological order (newest -> oldest) after currentEpisodeId.
    * Episodes without a published date are treated as the oldest.
-   * When currentEpisodeId is not found, the oldest unfinished episode is returned.
+   * When currentEpisodeId is not found, the newest unfinished episode is returned.
    */
   @JsonIgnore
   fun getNextUnfinishedEpisode(libraryItemId:String, currentEpisodeId:String?, mediaManager: MediaManager):PodcastEpisode? {
-    val sortedEpisodes = episodes?.sortedWith(compareBy<PodcastEpisode>({ it.publishedAt ?: 0L }, { it.index })) ?: return null
+    val sortedEpisodes = episodes?.sortedWith(compareByDescending<PodcastEpisode> { it.publishedAt ?: 0L }.thenByDescending { it.index }) ?: return null
     val currentIndex = sortedEpisodes.indexOfFirst { it.id == currentEpisodeId }
     val podcastEpisode = sortedEpisodes.drop(currentIndex + 1).find { episode ->
       val progress = mediaManager.serverUserMediaProgress.find { it.libraryItemId == libraryItemId && it.episodeId == episode.id }

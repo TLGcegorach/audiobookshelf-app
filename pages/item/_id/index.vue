@@ -173,7 +173,7 @@
 import { Dialog } from '@capacitor/dialog'
 import { AbsFileSystem, AbsDownloader } from '@/plugins/capacitor'
 import { getAverageColorFromCoverUrl } from '@/utils/coverAverageColor'
-import { buildPodcastEpisodeQueue } from '@/utils/playQueue'
+import { buildPodcastEpisodeQueue, sortEpisodesNewestFirst } from '@/utils/playQueue'
 import cellularPermissionHelpers from '@/mixins/cellularPermissionHelpers'
 
 export default {
@@ -528,13 +528,8 @@ export default {
       if (this.playerIsStartingPlayback) return
 
       if (this.isPodcast) {
-        this.episodes.sort((a, b) => {
-          if (this.podcastType === 'serial') {
-            return String(a.publishedAt).localeCompare(String(b.publishedAt), undefined, { numeric: true, sensitivity: 'base' })
-          } else {
-            return String(b.publishedAt).localeCompare(String(a.publishedAt), undefined, { numeric: true, sensitivity: 'base' })
-          }
-        })
+        // Always start with the newest unfinished episode
+        const sortedEpisodes = sortEpisodesNewestFirst(this.episodes)
 
         const isEpisodeFinished = (ep) => {
           var podcastProgress = null
@@ -545,13 +540,13 @@ export default {
           }
           return !!podcastProgress?.isFinished
         }
-        let episode = this.episodes.find((ep) => !isEpisodeFinished(ep))
+        let episode = sortedEpisodes.find((ep) => !isEpisodeFinished(ep))
 
-        if (!episode) episode = this.episodes[0]
+        if (!episode) episode = sortedEpisodes[0]
 
         const episodeId = episode.id
 
-        // Unfinished episodes published after this one are auto-played in chronological order
+        // Unfinished episodes published before this one are auto-played in reverse chronological order
         const localEpisodeMap = {}
         if (this.hasLocal && !this.isLocal && !this.isCasting) {
           this.localLibraryItem.media.episodes?.forEach((lep) => {
